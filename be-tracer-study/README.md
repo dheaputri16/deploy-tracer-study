@@ -211,20 +211,102 @@ Pastikan PostgreSQL sudah berjalan. Buat dua database (atau satu database dengan
 
 ```sql
 -- Jalankan di psql / pgAdmin
-CREATE DATABASE tracer_study;
+CREATE DATABASE tracer_study; dan buat 3 schema (public, tracer_oltp, dan dev_pre_aggregations)
 ```
 
 Isi kredensial di `.env` (lihat bagian lengkap di bawah).
 
 Lalu jalankan migrasi:
 
-```bash
-php artisan migrate
-```
+# Database Initialization
 
-> Jika menggunakan bootstrap SQL two-schema: jalankan `docs/postgresql-two-schema-bootstrap.sql` terlebih dahulu sebelum migrasi.
+SmartTracer menggunakan **Laravel Migration** untuk membangun struktur database dan **Laravel Seeder** untuk menginisialisasi data awal aplikasi. Untuk mempercepat proses deployment, data awal disimpan dalam sebuah berkas SQL (`init.sql`) yang dieksekusi saat proses seeding.
+
+Pendekatan ini dipilih karena database awal telah berisi sekitar **60.000 record**, sehingga proses import melalui berkas SQL jauh lebih efisien dibandingkan melakukan insert satu per satu menggunakan Eloquent atau Query Builder.
 
 ---
+
+## Struktur Folder
+
+```text
+database/
+├── dump/
+│   └── init.sql
+└── seeders/
+    └── DatabaseSeeder.php
+```
+
+---
+
+## Prasyarat
+
+Sebelum menjalankan migrasi dan seeding, pastikan:
+
+- PostgreSQL telah terinstal.
+- Database tujuan telah dibuat.
+- Konfigurasi database pada file `.env` telah sesuai.
+- Utilitas PostgreSQL (`psql`) telah tersedia pada PATH sistem (jika `DatabaseSeeder` menggunakan `psql` untuk import).
+
+---
+
+## Menjalankan Database
+
+Jalankan perintah berikut:
+
+```bash
+php artisan migrate --seed
+```
+
+Perintah tersebut akan melakukan proses berikut:
+
+1. Menjalankan seluruh Laravel Migration untuk membuat struktur database.
+2. Menjalankan `DatabaseSeeder`.
+3. Mengimpor seluruh data awal dari `database/dump/init.sql`.
+
+---
+
+## Isi Data Awal
+
+Berkas `init.sql` merupakan hasil **PostgreSQL Plain Backup (`pg_dump`)** yang berisi:
+
+- Struktur data hasil migrasi.
+- Master data aplikasi.
+- Data referensi.
+- Data transaksi awal.
+
+Total data yang diimpor sekitar **60.000 record**.
+
+---
+
+## Catatan
+
+- Proses import dapat memerlukan beberapa menit tergantung spesifikasi komputer.
+- Seeder ini ditujukan untuk proses **deployment awal** atau **setup environment development**.
+- Untuk perubahan struktur database selanjutnya tetap gunakan **Laravel Migration**, bukan mengubah `init.sql`.
+
+---
+
+## Alur Deployment
+
+```text
+Clone Repository
+        │
+        ▼
+composer install
+        │
+        ▼
+Copy .env & Konfigurasi Database
+        │
+        ▼
+php artisan key:generate
+        │
+        ▼
+php artisan migrate --seed
+        │
+        ▼
+Database siap digunakan
+```
+Pastikan database tujuan sudah dibuat sebelum menjalankan migrasi.
 
 ### Langkah 5 — Install Package Excel
 
