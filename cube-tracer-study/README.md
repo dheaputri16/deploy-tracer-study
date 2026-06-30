@@ -69,7 +69,7 @@ Berisi definisi view berbasis YAML:
 
 ## Menjalankan Service (Recommended: Docker)
 
-Jalankan dari folder `tracer-study-analytics-main/`:
+Jalankan dari folder `cube-tracer-study/`:
 
 ```bash
 docker compose up --build
