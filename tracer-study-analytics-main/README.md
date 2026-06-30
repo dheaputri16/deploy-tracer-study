@@ -69,10 +69,9 @@ Berisi definisi view berbasis YAML:
 
 ## Menjalankan Service (Recommended: Docker)
 
-Jalankan dari folder `tracer-analytics/`:
+Jalankan dari folder `tracer-study-analytics-main/`:
 
 ```bash
-cd tracer-analytics
 docker compose up --build
 ```
 
@@ -87,7 +86,6 @@ Service yang terbuka:
 ## Menjalankan Service (Alternatif: Local Node)
 
 ```bash
-cd tracer-analytics
 npm install
 npm run dev
 ```
