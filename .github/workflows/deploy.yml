@@ -9,6 +9,30 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Install OpenVPN
+        run: sudo apt-get update && sudo apt-get install -y openvpn netcat-openbsd
+
+      - name: Write VPN config and credentials
+        run: |
+          echo "${{ secrets.VPN_OVPN_CONFIG }}" > /tmp/client.ovpn
+          printf '%s\n%s\n' "${{ secrets.VPN_USERNAME }}" "${{ secrets.VPN_PASSWORD }}" > /tmp/vpn-auth.txt
+          chmod 600 /tmp/vpn-auth.txt /tmp/client.ovpn
+          sed -i "s#^auth-user-pass\$#auth-user-pass /tmp/vpn-auth.txt#" /tmp/client.ovpn
+
+      - name: Connect to VPN
+        run: |
+          sudo openvpn --config /tmp/client.ovpn --daemon --log /tmp/openvpn.log
+          for i in $(seq 1 30); do
+            if nc -z -w2 "${{ secrets.VPS_HOST }}" "${{ secrets.VPS_PORT || 22 }}"; then
+              echo "VPS reachable through VPN"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for VPN tunnel"
+          cat /tmp/openvpn.log
+          exit 1
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -24,3 +48,7 @@ jobs:
             docker compose up -d
             docker compose exec -T app php artisan migrate --force
             docker image prune -f
+
+      - name: Disconnect VPN
+        if: always()
+        run: sudo pkill openvpn || true
