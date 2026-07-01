@@ -267,3 +267,4 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::get('dashboard/employment/summary', [EmploymentSummaryController::class, 'summary']);
 
 });
+
