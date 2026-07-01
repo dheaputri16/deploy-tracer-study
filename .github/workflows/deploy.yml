@@ -13,9 +13,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y openvpn netcat-openbsd
 
       - name: Write VPN config and credentials
+        env:
+          VPN_OVPN_CONFIG: ${{ secrets.VPN_OVPN_CONFIG }}
+          VPN_USERNAME: ${{ secrets.VPN_USERNAME }}
+          VPN_PASSWORD: ${{ secrets.VPN_PASSWORD }}
         run: |
-          echo "${{ secrets.VPN_OVPN_CONFIG }}" > /tmp/client.ovpn
-          printf '%s\n%s\n' "${{ secrets.VPN_USERNAME }}" "${{ secrets.VPN_PASSWORD }}" > /tmp/vpn-auth.txt
+          printf '%s\n' "$VPN_OVPN_CONFIG" > /tmp/client.ovpn
+          printf '%s\n%s\n' "$VPN_USERNAME" "$VPN_PASSWORD" > /tmp/vpn-auth.txt
           chmod 600 /tmp/vpn-auth.txt /tmp/client.ovpn
           sed -i "s#^auth-user-pass\$#auth-user-pass /tmp/vpn-auth.txt#" /tmp/client.ovpn
 
