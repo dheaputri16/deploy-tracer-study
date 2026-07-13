@@ -19,6 +19,7 @@ import { MethodologyBlock } from "./Methodology";
 import { markMax } from "./format";
 import { useLamFilter, LamFilterControls, lamSubtitle } from "./useLamFilter";
 import { useMasaTungguBar, useMasaTungguDistribusi, useMasaTungguDrillDown } from "@/hooks/useMasaTunggu";
+import { useKpiFormula, findFormulaGroup } from "@/hooks/useKpiFormula";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import DrillDownModal from "@/components/dashboard/DrillDownModal";
 import { buildColorMap } from "@/lib/chartColors";
@@ -26,29 +27,43 @@ import { buildColorMap } from "@/lib/chartColors";
 const CONTEXT_COLUMN = { key: "masa_tunggu_bekerja", label: "Masa Tunggu (bln)" };
 
 const Kpi5WaitingTimeChart = () => {
-  const barHook        = useMasaTungguBar();
+  const lam = useLamFilter("waitingTime");
+  // Ambang "cepat" dinamis dari LAM terpilih (indikator employment_time) --
+  // dulu selalu 6 bulan hardcode. undefined = biarkan BE pakai default 6.
+  const batasCepatBulan = lam.dynamicParam?.value;
+
+  const barHook        = useMasaTungguBar(batasCepatBulan);
   const distribusiHook = useMasaTungguDistribusi();
   const drillHook      = useMasaTungguDrillDown();
-  const lam            = useLamFilter("waitingTime");
+
+  // Label angka bulan yang ditampilkan (fallback 6 kalau belum ada konteks LAM/prodi).
+  const batasLabel = batasCepatBulan ?? 6;
 
   const { tahunLulus } = useGlobalFilters();
 
   const [modal, setModal] = useState<{
     open: boolean;
     title: string;
-    rentang?: "0-3" | "3-6" | ">6";
+    rentang?: "cepat" | "0-3" | "3-6" | ">6";
     tahun_lulus?: string;
+    batas_cepat_bulan?: number;
   }>({ open: false, title: "" });
 
-  const openModal = (title: string, rentang: "0-3" | "3-6" | ">6", tahun?: string) => {
-    setModal({ open: true, title, rentang, tahun_lulus: tahun });
-    drillHook.fetch({ rentang, tahun_lulus: tahun, page: 1 });
+  const openModal = (title: string, rentang: "cepat" | "0-3" | "3-6" | ">6", tahun?: string, batasCepat?: number) => {
+    setModal({ open: true, title, rentang, tahun_lulus: tahun, batas_cepat_bulan: batasCepat });
+    drillHook.fetch({ rentang, tahun_lulus: tahun, page: 1, batas_cepat_bulan: batasCepat });
   };
 
   const handlePageChange = useCallback((page: number, search?: string) => {
     if (!modal.rentang) return;
-    drillHook.fetch({ rentang: modal.rentang, tahun_lulus: modal.tahun_lulus, page, search });
-  }, [modal.rentang, modal.tahun_lulus, drillHook]);
+    drillHook.fetch({
+      rentang: modal.rentang,
+      tahun_lulus: modal.tahun_lulus,
+      page,
+      search,
+      batas_cepat_bulan: modal.batas_cepat_bulan,
+    });
+  }, [modal.rentang, modal.tahun_lulus, modal.batas_cepat_bulan, drillHook]);
 
   // Aggregate bar data: per-prodi/tahun → per tahun (sum count, hitung pct)
   const comboData = useMemo(() => {
@@ -90,28 +105,49 @@ const Kpi5WaitingTimeChart = () => {
   }, [distribusiHook.data]);
 
   const latestYear = comboData.length > 0 ? comboData[comboData.length - 1].year : undefined;
-  const distTahun = tahunLulus === "all" ? latestYear : tahunLulus;
+  const isAllYear = tahunLulus === "all";
+  // Distribusi (useMasaTungguDistribusi) sekarang default ke tahun_lulus
+  // terbaru kalau "all" -- subtitle harus konsisten dengan itu.
+  const distTahun = isAllYear ? latestYear : tahunLulus;
 
   const showRefLine = !lam.isDisabled && !!lam.threshold;
   const isLoading   = barHook.loading || distribusiHook.loading;
   const hasError    = barHook.error || distribusiHook.error;
 
+  // "Total Lulusan Bekerja" (denominator masa tunggu) ditentukan oleh status mana
+  // saja yang dianggap valid/bekerja — dikonfigurasi di halaman Pemetaan Pertanyaan
+  // (digunakan_oleh = masa_tunggu_valid_status). Dirender sebagai catatan dinamis
+  // di bawah formula, bukan mengganti struktur formula (angka batas bulan tetap
+  // konstanta institusional, bukan hasil pemetaan kode → kategori).
+  const validStatusFormula = useKpiFormula("status_pekerjaan", "masa_tunggu_valid_status");
+  const validStatusGroup = findFormulaGroup(validStatusFormula.groups, "valid");
+  const totalBekerjaNote = validStatusGroup
+    ? `"Total Lulusan Bekerja" mencakup status: ${validStatusGroup.options.join(", ")}.`
+    : null;
+
   return (
     <>
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* ── Bar: tren % ≤ 6 bulan ── */}
+        {/* ── Bar: tren % ≤ ambang cepat (dinamis per LAM, default 6 bulan) ── */}
         <KpiCard
           loading={isLoading} error={hasError}
           empty={!isLoading && comboData.length === 0}
-          title="% Lulusan Mendapat Kerja dalam ≤ 6 Bulan"
+          title={`% Lulusan Mendapat Kerja dalam ≤ ${batasLabel} Bulan`}
           subtitle={lamSubtitle(lam)}
           compareType="waktuTunggu"
           headerExtra={<LamFilterControls lam={lam} />}
           methodology={
             <MethodologyBlock
               description="Mengukur kecepatan lulusan memperoleh pekerjaan pertama setelah lulus."
-              formula={<>% ≤ 6 Bulan = (Jumlah Lulusan dengan Masa Tunggu ≤ 6 Bulan / Total Lulusan Bekerja) × 100%</>}
-              notes="Masa tunggu dihitung dari bulan kelulusan ke bulan mulai pekerjaan pertama."
+              formula={<>% ≤ {batasLabel} Bulan = (Jumlah Lulusan dengan Masa Tunggu ≤ {batasLabel} Bulan / Total Lulusan Bekerja) × 100%</>}
+              notes={
+                <>
+                  Masa tunggu dihitung dari bulan kelulusan ke bulan mulai pekerjaan pertama. Ambang{" "}
+                  {batasLabel} bulan mengikuti standar LAM yang sedang dipilih (indikator "employment_time")
+                  — 6 bulan dipakai sebagai default kalau belum ada LAM/prodi terpilih.
+                  {totalBekerjaNote && <> {totalBekerjaNote}</>}
+                </>
+              }
             />
           }
         >
@@ -126,12 +162,12 @@ const Kpi5WaitingTimeChart = () => {
                 <YAxis
                   domain={[0, 100]} fontSize={13} stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(v) => `${v}%`}
-                  label={{ value: "% Lulusan ≤ 6 bln", angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  label={{ value: `% Lulusan ≤ ${batasLabel} bln`, angle: -90, position: "insideLeft", fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(v: number, _name, p: any) =>
-                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, "≤ 6 bulan"]
+                    [`${v}% (${p.payload.n}/${p.payload.total} lulusan)`, `≤ ${batasLabel} bulan`]
                   }
                 />
                 {tahunLulus !== "all" && (
@@ -144,10 +180,10 @@ const Kpi5WaitingTimeChart = () => {
                     stroke="hsl(45 95% 45%)" strokeOpacity={0.55} strokeDasharray="4 2" />
                 ))}
                 <Bar
-                  dataKey="pct" name="% ≤ 6 bln" radius={[6, 6, 0, 0]} maxBarSize={60}
+                  dataKey="pct" name={`% ≤ ${batasLabel} bln`} radius={[6, 6, 0, 0]} maxBarSize={60}
                   cursor="pointer"
                   onClick={(d: any) => openModal(
-                    `Lulusan ≤ 6 bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "0-3", d.year
+                    `Lulusan ≤ ${batasLabel} bln — ${d.year} (${d.pct}% • ${d.n}/${d.total})`, "cepat", d.year, batasCepatBulan
                   )}
                   activeBar={{ stroke: C.blueDark, strokeWidth: 2 } as any}
                 >
@@ -179,12 +215,13 @@ const Kpi5WaitingTimeChart = () => {
           loading={isLoading} error={hasError}
           empty={!isLoading && distData.length === 0}
           title="Distribusi Kategori Masa Tunggu"
-          subtitle={distTahun ? `Tahun kelulusan ${distTahun} — sumbu X: % lulusan` : "Semua periode aktif — sumbu X: % lulusan"}
+          subtitle={distTahun ? `Tahun kelulusan ${distTahun}${isAllYear ? " (default: terbaru)" : ""} — sumbu X: % lulusan` : "Memuat…"}
           compareType="waktuTunggu"
           methodology={
             <MethodologyBlock
               description="Proporsi lulusan menurut kategori rentang masa tunggu kerja."
               formula={<>% Kategori = (Jumlah Lulusan pada Kategori / Total Lulusan Bekerja) × 100%</>}
+              notes={totalBekerjaNote ?? undefined}
             />
           }
         >
