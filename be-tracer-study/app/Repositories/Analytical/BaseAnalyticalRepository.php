@@ -4,63 +4,12 @@ namespace App\Repositories\Analytical;
 
 use App\Services\CubeJsClient;
 
-/**
- * BaseAnalyticalRepository
- *
- * Kelas induk untuk semua analytical repository yang query ke Cube.js.
- * Menyediakan helper buildGlobalFilters() agar setiap repo tidak
- * menulis ulang logika filter global yang sama.
- *
- * Filter global dashboard:
- *   - jenjang        → DimProdi.jenjang       (D3 / D4)
- *   - jurusan        → DimProdi.jurusan
- *   - nama_prodi     → DimProdi.nama_prodi
- *   - tahun_lulus    → DimAlumni.tahun_lulus   (dari dim_alumni, BUKAN tahun_snapshot)
- *   - minggu_snapshot→ DimWaktu.minggu_snapshot
- *
- * Cara extend:
- *   class KeterserapanRepository extends BaseAnalyticalRepository { ... }
- *
- * Taruh di: app/Repositories/Analytical/BaseAnalyticalRepository.php
- */
 abstract class BaseAnalyticalRepository
 {
     public function __construct(
         protected readonly CubeJsClient $cube,
     ) {}
 
-    // ──────────────────────────────────────────────────────────────
-    //  GLOBAL FILTER BUILDER
-    // ──────────────────────────────────────────────────────────────
-
-    /**
-     * Bangun array filter Cube.js dari parameter global dashboard.
-     *
-     * Semua parameter nullable — kalau null berarti tidak difilter.
-     * Parameter $extra untuk filter tambahan spesifik per endpoint
-     * (contoh: filter status alumni, filter id_indikator, dst).
-     *
-     * Contoh penggunaan di repository turunan:
-     *
-     *   $filters = $this->buildGlobalFilters(
-     *       jenjang:        $jenjang,
-     *       jurusan:        $jurusan,
-     *       namaProdi:      $namaProdi,
-     *       tahunLulus:     $tahunLulus,
-     *       mingguSnapshot: $mingguSnapshot,
-     *       extra: [
-     *           ['member' => 'DimStatusAlumni.label', 'operator' => 'equals', 'values' => ['Bekerja']],
-     *       ]
-     *   );
-     *
-     * @param  string|null  $jenjang         Filter DimProdi.jenjang (contoh: 'D3', 'D4')
-     * @param  string|null  $jurusan         Filter DimProdi.jurusan
-     * @param  string|null  $namaProdi       Filter DimProdi.nama_prodi (exact match)
-     * @param  string|null  $tahunLulus      Filter DimAlumni.tahun_lulus (contoh: '2022')
-     * @param  string|null  $mingguSnapshot  Filter DimWaktu.minggu_snapshot (contoh: 'W-48')
-     * @param  array        $extra           Filter tambahan yang sudah dalam format Cube.js
-     * @return array<array{member:string, operator:string, values?:array}>
-     */
     protected function buildGlobalFilters(
         ?string $jenjang        = null,
         ?string $jurusan        = null,
@@ -104,8 +53,24 @@ abstract class BaseAnalyticalRepository
         }
 
         if ($mingguSnapshot !== null && $mingguSnapshot !== '') {
+            // Filter by DimWaktu.id_waktu (UNIK per snapshot run), BUKAN
+            // DimWaktu.minggu_snapshot (teks, mis. "29") -- nama parameter
+            // ($mingguSnapshot / query string minggu_snapshot) sengaja TIDAK
+            // diubah di seluruh codebase (FE, controller, DTO) supaya diff
+            // kecil, tapi NILAI yang mengalir lewat sini sekarang adalah
+            // id_waktu (lihat FilterMetaRepository::getSnapshot(), yang
+            // mengisi field "value" dropdown dengan id_waktu, bukan lagi
+            // minggu_snapshot mentah).
+            //
+            // Alasan: dua ETL run di minggu kalender yang SAMA (rutin terjadi
+            // sekarang karena Langkah 1 mapping auto-trigger ETL kapan saja,
+            // bukan cuma terjadwal mingguan) menghasilkan DUA baris dim_waktu
+            // dengan minggu_snapshot yang IDENTIK -- filter berbasis teks
+            // akan mencocokkan KEDUANYA sekaligus, meng-inflate/mengacaukan
+            // semua angka agregat. id_waktu adalah primary key, selalu unik
+            // per run, tidak punya ambiguitas ini.
             $filters[] = [
-                'member'   => 'DimWaktu.minggu_snapshot',
+                'member'   => 'DimWaktu.id_waktu',
                 'operator' => 'equals',
                 'values'   => [$mingguSnapshot],
             ];
