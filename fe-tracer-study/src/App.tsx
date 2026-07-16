@@ -51,7 +51,7 @@ const P = ({ children }: { children: React.ReactNode }) => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/tracer-study">
         {/* ✅ AuthProvider di dalam BrowserRouter agar useNavigate bisa dipakai di context */}
         <AuthProvider>
           <RoleProvider>
