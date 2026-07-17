@@ -17,6 +17,7 @@ import {
   Wallet,
   Link2,
   AlertTriangle,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,12 @@ const navItems = [
     icon: BookOpen,
     href: "/dashboard/education",
     description: "Kompetensi & pembelajaran",
+  },
+  {
+    title: "Multidimensi Insight",
+    icon: Layers,
+    href: "/dashboard/multidimensi-insight",
+    description: "Eksplorasi data multidimensi",
   },
 ];
 

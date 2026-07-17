@@ -29,6 +29,7 @@ import FormPage from "./pages/FormPage";
 import MasterUmpPage from "./pages/MasterUmpPage";
 import QuestionMappingPage from "./pages/QuestionMappingPage";
 import EtlAnomalyLogPage from "./pages/EtlAnomalyLogPage";
+import MultidimensiInsightPage from "./pages/MultidimensiInsightPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/dashboard/overview"             element={<P><OverviewPage /></P>} />
               <Route path="/dashboard/employment"           element={<P><EmploymentPage /></P>} />
               <Route path="/dashboard/education"            element={<P><EducationPage /></P>} />
+              <Route path="/dashboard/multidimensi-insight" element={<P><MultidimensiInsightPage /></P>} />
               <Route path="/dashboard/kpi"                  element={<P><KpiOverviewPage /></P>} />
               <Route path="/dashboard/threshold-management" element={<P><ThresholdManagementPage /></P>} />
               <Route path="/dashboard/master-ump" element={<P><MasterUmpPage /></P>} />
