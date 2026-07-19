@@ -1,6 +1,6 @@
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 
-const METABASE_URL = import.meta.env.VITE_METABASE_URL || "http://localhost:3000";
+const METABASE_URL = (import.meta.env.VITE_METABASE_URL || "http://localhost:3000").replace(/\/+$/, "");
 const METABASE_DASHBOARD_ID = import.meta.env.VITE_METABASE_MULTIDIMENSI_DASHBOARD_ID || "c3db24a3-7878-4d57-9a2d-e3f53b299b06";
 
 const MultidimensiInsightPage = () => {
