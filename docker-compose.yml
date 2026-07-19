@@ -108,7 +108,7 @@ services:
             - MB_DB_USER=postgres
             - MB_DB_PASS=postgres
             - MB_DB_HOST=db
-            - MB_SITE_URL=https://birokrasi.kemahasiswaan.polban.ac.id/tracer-study/metabase
+            - MB_SITE_URL=http://birokrasi.kemahasiswaan.polban.ac.id:8104
         networks:
             - app-network
         depends_on:
